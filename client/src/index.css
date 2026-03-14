@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #0b1118;
+  --panel: #141c26;
+  --panel-strong: #101822;
+  --panel-border: rgba(255, 255, 255, 0.06);
+  --display: rgba(8, 12, 18, 0.75);
+  --key: #1b2531;
+  --key-hover: #243140;
+  --operator: #1b3b4a;
+  --operator-hover: #235064;
+  --utility: #161f29;
+  --utility-hover: #1f2a36;
+  --accent: #f28c28;
+  --text: #c7d0da;
+  --text-strong: #f5f7fb;
+  --muted: #7b8a99;
+  --font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+  font: 16px/1.5 var(--font-display);
+  color: var(--text);
+  background: var(--bg);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(71, 174, 198, 0.2), transparent 45%),
+    radial-gradient(circle at 20% 85%, rgba(244, 149, 58, 0.2), transparent 50%),
+    #0b1118;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+code {
+  font-family: var(--font-mono);
+}
