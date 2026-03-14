@@ -254,8 +254,8 @@ function App() {
           <button className="key key--utility" onClick={resetAll}>
             AC
           </button>
-          <button className="key key--utility" onClick={backspace}>
-            CE
+          <button className="key key--utility" onClick={toggleSign}>
+            +/-
           </button>
           <button className="key key--utility" onClick={applyPercent}>
             %
@@ -328,7 +328,7 @@ function App() {
 
         <div className="footer">
           <span>Keys: 0-9, +, -, *, /, Enter, Esc</span>
-          <span>CE = backspace</span>
+          <span>Backspace = delete</span>
         </div>
       </div>
     </div>
