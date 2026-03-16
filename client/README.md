@@ -1,73 +1,51 @@
-# React + TypeScript + Vite
+# Orbit Calculator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Desktop-style calculator built with React + Vite, packaged with Electron.
 
-Currently, two official plugins are available:
+## Features
+- Basic ops: `+ - * /`
+- `AC` clear, `Backspace` delete
+- Percent and sign toggle
+- Keyboard support
+- Desktop packaging via Electron
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Development
+Install dependencies:
+```powershell
+npm.cmd --prefix d:\Code\calculator\client install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Run the web dev server:
+```powershell
+npm.cmd --prefix d:\Code\calculator\client run dev
 ```
+
+Run Electron in dev mode:
+```powershell
+npm.cmd --prefix d:\Code\calculator\client run electron:dev
+```
+
+## Build
+Build the production web app:
+```powershell
+npm.cmd --prefix d:\Code\calculator\client run build
+```
+
+Package the desktop app:
+```powershell
+npm.cmd --prefix d:\Code\calculator\client run electron:pack
+```
+
+Artifacts are written under `client/dist`.
+
+## Keyboard shortcuts
+- Digits: `0-9`
+- Operators: `+ - * /`
+- Decimal: `.`
+- Evaluate: `Enter` or `=`
+- Clear: `Esc`
+- Delete: `Backspace`
+- Percent: `%`
+
+## Troubleshooting
+If `npm install` fails with `EBUSY` on `node_modules\electron`, close any running Electron/Vite process and delete `client/node_modules/electron`, then re-run install.
