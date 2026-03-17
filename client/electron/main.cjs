@@ -6,14 +6,11 @@ const isDev = Boolean(devServerUrl)
 
 const createWindow = () => {
   const mainWindow = new BrowserWindow({
-    width: 420,
-    height: 680,
-    minWidth: 340,
-    minHeight: 520,
+    width: 1180,\n    height: 820,\n    minWidth: 860,\n    minHeight: 640,
     resizable: true,
     backgroundColor: '#0b1118',
     show: false,
-    title: 'Orbit Calculator',
+    title: 'Orbit Calculator',\n    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
     },
@@ -46,3 +43,4 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+

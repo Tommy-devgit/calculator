@@ -1,212 +1,373 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
-type Operator = '+' | '-' | '*' | '/' | '^'
 type AngleMode = 'DEG' | 'RAD'
 
-const operatorLabels: Record<Operator, string> = {
-  '+': '+',
-  '-': '-',
-  '*': '*',
-  '/': '/',
-  '^': 'x^y',
+type HistoryEntry = {
+  expression: string
+  result: string
 }
 
-const formatDisplayValue = (raw: string) => {
-  if (raw === 'Error') return raw
-  if (raw === '-') return raw
+const operatorPrecedence: Record<string, number> = {
+  '+': 2,
+  '-': 2,
+  '*': 3,
+  '/': 3,
+  '^': 4,
+}
 
-  const isNegative = raw.startsWith('-')
-  const unsigned = isNegative ? raw.slice(1) : raw
-  const [integerPart, decimalPart] = unsigned.split('.')
-  const withGrouping = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  const signed = isNegative ? `-${withGrouping}` : withGrouping
+const rightAssociative = new Set(['^'])
+const functions = new Set([
+  'sin',
+  'cos',
+  'tan',
+  'asin',
+  'acos',
+  'atan',
+  'sqrt',
+  'log',
+  'ln',
+  'neg',
+  'inv',
+])
 
-  if (decimalPart !== undefined) {
-    return `${signed}.${decimalPart}`
+const constants: Record<string, number> = {
+  pi: Math.PI,
+  e: Math.E,
+}
+
+const formatNumber = (value: number) => {
+  if (!Number.isFinite(value)) return 'Error'
+  const asString = value.toString()
+  if (Math.abs(value) >= 1e10 || (Math.abs(value) > 0 && Math.abs(value) < 1e-6)) {
+    return value.toExponential(6)
   }
-
-  return signed
+  return asString
 }
 
 const toRadians = (value: number, mode: AngleMode) =>
   mode === 'DEG' ? (value * Math.PI) / 180 : value
 
+const fromRadians = (value: number, mode: AngleMode) =>
+  mode === 'DEG' ? (value * 180) / Math.PI : value
+
+const tokenize = (input: string) => {
+  const tokens: string[] = []
+  let current = ''
+
+  const flush = () => {
+    if (current) {
+      tokens.push(current)
+      current = ''
+    }
+  }
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i]
+    if (char === ' ') continue
+
+    if (/[0-9.]/.test(char)) {
+      current += char
+      continue
+    }
+
+    if (/[a-z]/i.test(char)) {
+      current += char
+      continue
+    }
+
+    flush()
+    tokens.push(char)
+  }
+
+  flush()
+  return tokens
+}
+
+const toRpn = (tokens: string[]) => {
+  const output: string[] = []
+  const stack: string[] = []
+
+  const isOperator = (token: string) => ['+', '-', '*', '/', '^'].includes(token)
+
+  tokens.forEach((token, index) => {
+    const prev = index > 0 ? tokens[index - 1] : ''
+    const isUnaryMinus = token === '-' && (index === 0 || prev === '(' || isOperator(prev))
+
+    if (isUnaryMinus) {
+      stack.push('neg')
+      return
+    }
+
+    if (!Number.isNaN(Number(token))) {
+      output.push(token)
+      return
+    }
+
+    if (token in constants) {
+      output.push(constants[token].toString())
+      return
+    }
+
+    if (functions.has(token)) {
+      stack.push(token)
+      return
+    }
+
+    if (isOperator(token)) {
+      while (stack.length > 0) {
+        const top = stack[stack.length - 1]
+        if (functions.has(top)) {
+          output.push(stack.pop() as string)
+          continue
+        }
+        if (
+          isOperator(top) &&
+          (operatorPrecedence[top] > operatorPrecedence[token] ||
+            (operatorPrecedence[top] === operatorPrecedence[token] &&
+              !rightAssociative.has(token)))
+        ) {
+          output.push(stack.pop() as string)
+          continue
+        }
+        break
+      }
+      stack.push(token)
+      return
+    }
+
+    if (token === '(') {
+      stack.push(token)
+      return
+    }
+
+    if (token === ')') {
+      while (stack.length > 0 && stack[stack.length - 1] !== '(') {
+        output.push(stack.pop() as string)
+      }
+      stack.pop()
+      if (stack.length > 0 && functions.has(stack[stack.length - 1])) {
+        output.push(stack.pop() as string)
+      }
+    }
+  })
+
+  while (stack.length > 0) {
+    output.push(stack.pop() as string)
+  }
+
+  return output
+}
+
+const evaluateRpn = (tokens: string[], mode: AngleMode) => {
+  const stack: number[] = []
+
+  tokens.forEach((token) => {
+    if (!Number.isNaN(Number(token))) {
+      stack.push(Number(token))
+      return
+    }
+
+    if (functions.has(token)) {
+      const value = stack.pop()
+      if (value === undefined) return
+      if (token === 'neg') stack.push(-value)
+      else if (token === 'inv') stack.push(1 / value)
+      else if (token === 'sqrt') stack.push(Math.sqrt(value))
+      else if (token === 'log') stack.push(Math.log10(value))
+      else if (token === 'ln') stack.push(Math.log(value))
+      else if (token === 'sin') stack.push(Math.sin(toRadians(value, mode)))
+      else if (token === 'cos') stack.push(Math.cos(toRadians(value, mode)))
+      else if (token === 'tan') stack.push(Math.tan(toRadians(value, mode)))
+      else if (token === 'asin') stack.push(fromRadians(Math.asin(value), mode))
+      else if (token === 'acos') stack.push(fromRadians(Math.acos(value), mode))
+      else if (token === 'atan') stack.push(fromRadians(Math.atan(value), mode))
+      return
+    }
+
+    const right = stack.pop()
+    const left = stack.pop()
+    if (right === undefined || left === undefined) return
+    if (token === '+') stack.push(left + right)
+    else if (token === '-') stack.push(left - right)
+    else if (token === '*') stack.push(left * right)
+    else if (token === '/') stack.push(right === 0 ? NaN : left / right)
+    else if (token === '^') stack.push(Math.pow(left, right))
+  })
+
+  return stack.length === 1 ? stack[0] : NaN
+}
+
+const evaluateExpression = (input: string, mode: AngleMode) => {
+  const tokens = tokenize(input)
+  const rpn = toRpn(tokens)
+  return evaluateRpn(rpn, mode)
+}
+
+const applyToLastNumber = (expression: string, fn: (value: number) => number) => {
+  const match = expression.match(/(-?\d*\.?\d+)(?!.*\d)/)
+  if (!match || match.index === undefined) return expression
+  const value = Number(match[1])
+  if (Number.isNaN(value)) return expression
+  const updated = fn(value)
+  if (!Number.isFinite(updated)) return expression
+  const before = expression.slice(0, match.index)
+  const after = expression.slice(match.index + match[1].length)
+  return `${before}${updated}${after}`
+}
+
+const addImplicitMultiply = (expression: string) => {
+  if (!expression) return expression
+  const lastChar = expression[expression.length - 1]
+  if (/[0-9)\]]/.test(lastChar)) {
+    return `${expression}*`
+  }
+  return expression
+}
+
 function App() {
-  const [display, setDisplay] = useState('0')
-  const [previousValue, setPreviousValue] = useState<number | null>(null)
-  const [operator, setOperator] = useState<Operator | null>(null)
-  const [overwrite, setOverwrite] = useState(false)
+  const [expression, setExpression] = useState('0')
+  const [result, setResult] = useState('0')
   const [angleMode, setAngleMode] = useState<AngleMode>('DEG')
+  const [memory, setMemory] = useState<number | null>(null)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
 
-  const history = useMemo(() => {
-    if (previousValue === null || operator === null) return ''
-    return `${previousValue} ${operatorLabels[operator]}`
-  }, [previousValue, operator])
+  const readyLabel = useMemo(
+    () => (angleMode === 'DEG' ? 'Degrees' : 'Radians'),
+    [angleMode]
+  )
 
-  const resetAll = () => {
-    setDisplay('0')
-    setPreviousValue(null)
-    setOperator(null)
-    setOverwrite(false)
+  const append = (value: string) => {
+    setExpression((prev) => {
+      if (prev === '0' && /[0-9.]/.test(value)) return value
+      return prev + value
+    })
   }
 
-  const inputDigit = (digit: string) => {
-    if (display === 'Error') {
-      setDisplay(digit)
-      setOverwrite(false)
-      return
-    }
-    if (overwrite) {
-      setDisplay(digit)
-      setOverwrite(false)
-      return
-    }
-    if (display === '0') {
-      setDisplay(digit)
-      return
-    }
-    setDisplay((current) => current + digit)
+  const appendOperator = (operator: string) => {
+    setExpression((prev) => {
+      const trimmed = prev.trim()
+      if (!trimmed) return operator
+      if (/[+\-*/^]$/.test(trimmed)) {
+        return trimmed.replace(/[+\-*/^]$/, operator)
+      }
+      return trimmed + operator
+    })
   }
 
-  const inputDot = () => {
-    if (display === 'Error') {
-      setDisplay('0.')
-      setOverwrite(false)
-      return
-    }
-    if (overwrite) {
-      setDisplay('0.')
-      setOverwrite(false)
-      return
-    }
-    if (display.includes('.')) return
-    setDisplay((current) => current + '.')
+  const appendFunction = (fn: string) => {
+    setExpression((prev) => {
+      const next = addImplicitMultiply(prev)
+      if (next === '0') return `${fn}(`
+      return `${next}${fn}(`
+    })
+  }
+
+  const appendConstant = (name: keyof typeof constants) => {
+    setExpression((prev) => {
+      const next = addImplicitMultiply(prev)
+      if (next === '0') return name
+      return `${next}${name}`
+    })
+  }
+
+  const clearAll = () => {
+    setExpression('0')
+    setResult('0')
   }
 
   const backspace = () => {
-    if (display === 'Error') {
-      setDisplay('0')
-      setOverwrite(false)
-      return
-    }
-    if (overwrite) {
-      setDisplay('0')
-      setOverwrite(false)
-      return
-    }
-    if (display.length <= 1 || (display.length === 2 && display.startsWith('-'))) {
-      setDisplay('0')
-      return
-    }
-    setDisplay((current) => current.slice(0, -1))
+    setExpression((prev) => {
+      if (prev.length <= 1) return '0'
+      return prev.slice(0, -1)
+    })
   }
 
   const toggleSign = () => {
-    if (display === 'Error') {
-      setDisplay('0')
-      setOverwrite(false)
-      return
-    }
-    if (display === '0') return
-    if (display.startsWith('-')) {
-      setDisplay(display.slice(1))
-      return
-    }
-    setDisplay(`-${display}`)
+    setExpression((prev) => applyToLastNumber(prev, (value) => -value))
   }
 
   const applyPercent = () => {
-    if (display === 'Error') {
-      setDisplay('0')
-      setOverwrite(false)
-      return
-    }
-    const currentValue = Number(display)
-    if (Number.isNaN(currentValue)) return
-    setDisplay(String(currentValue / 100))
-    setOverwrite(true)
+    setExpression((prev) => applyToLastNumber(prev, (value) => value / 100))
   }
 
-  const applyConstant = (value: number) => {
-    setDisplay(String(value))
-    setOverwrite(true)
-  }
-
-  const applyUnary = (fn: (value: number) => number) => {
-    if (display === 'Error') {
-      setDisplay('0')
-      setOverwrite(false)
+  const applyUnaryInline = (token: string) => {
+    if (token === 'x^2') {
+      setExpression((prev) => `${prev}^2`)
       return
     }
-    const currentValue = Number(display)
-    if (Number.isNaN(currentValue)) return
-    const result = fn(currentValue)
-    if (!Number.isFinite(result)) {
-      setDisplay('Error')
-      setOverwrite(true)
+    if (token === '1/x') {
+      setExpression((prev) => `${addImplicitMultiply(prev)}inv(`)
       return
     }
-    setDisplay(String(result))
-    setOverwrite(true)
-  }
-
-  const compute = (left: number, right: number, op: Operator) => {
-    if (op === '+') return left + right
-    if (op === '-') return left - right
-    if (op === '*') return left * right
-    if (op === '/') return right === 0 ? null : left / right
-    if (op === '^') return Math.pow(left, right)
-    return null
-  }
-
-  const handleOperator = (nextOperator: Operator) => {
-    if (display === 'Error') return
-    const currentValue = Number(display)
-    if (Number.isNaN(currentValue)) return
-
-    if (previousValue === null) {
-      setPreviousValue(currentValue)
-      setOperator(nextOperator)
-      setOverwrite(true)
+    if (token === 'sqrt') {
+      appendFunction('sqrt')
       return
     }
-
-    if (operator && !overwrite) {
-      const result = compute(previousValue, currentValue, operator)
-      if (result === null) {
-        setDisplay('Error')
-        setPreviousValue(null)
-        setOperator(null)
-        setOverwrite(true)
-        return
-      }
-      setPreviousValue(result)
-      setDisplay(String(result))
-      setOperator(nextOperator)
-      setOverwrite(true)
+    if (token === 'log') {
+      appendFunction('log')
       return
     }
-
-    setOperator(nextOperator)
-    setOverwrite(true)
+    if (token === 'ln') {
+      appendFunction('ln')
+      return
+    }
+    if (token === 'sin') {
+      appendFunction('sin')
+      return
+    }
+    if (token === 'cos') {
+      appendFunction('cos')
+      return
+    }
+    if (token === 'tan') {
+      appendFunction('tan')
+      return
+    }
+    if (token === 'asin') {
+      appendFunction('asin')
+      return
+    }
+    if (token === 'acos') {
+      appendFunction('acos')
+      return
+    }
+    if (token === 'atan') {
+      appendFunction('atan')
+    }
   }
 
   const evaluate = () => {
-    if (display === 'Error') return
-    if (previousValue === null || operator === null) return
-    const currentValue = Number(display)
-    if (Number.isNaN(currentValue)) return
-
-    const result = compute(previousValue, currentValue, operator)
-    if (result === null) {
-      setDisplay('Error')
-    } else {
-      setDisplay(String(result))
+    const computed = evaluateExpression(expression, angleMode)
+    const formatted = formatNumber(computed)
+    setResult(formatted)
+    if (formatted !== 'Error') {
+      setHistory((prev) => [
+        { expression, result: formatted },
+        ...prev.slice(0, 18),
+      ])
+      setExpression(formatted)
     }
-    setPreviousValue(null)
-    setOperator(null)
-    setOverwrite(true)
+  }
+
+  const memoryClear = () => setMemory(null)
+  const memoryRecall = () => {
+    if (memory === null) return
+    setExpression((prev) => {
+      const next = addImplicitMultiply(prev)
+      if (next === '0') return formatNumber(memory)
+      return `${next}${formatNumber(memory)}`
+    })
+  }
+  const memoryAdd = () => {
+    const computed = evaluateExpression(expression, angleMode)
+    if (!Number.isFinite(computed)) return
+    setMemory((prev) => (prev ?? 0) + computed)
+  }
+  const memorySubtract = () => {
+    const computed = evaluateExpression(expression, angleMode)
+    if (!Number.isFinite(computed)) return
+    setMemory((prev) => (prev ?? 0) - computed)
   }
 
   useEffect(() => {
@@ -216,13 +377,13 @@ function App() {
 
       if (key >= '0' && key <= '9') {
         event.preventDefault()
-        inputDigit(key)
+        append(key)
         return
       }
 
       if (key === '.') {
         event.preventDefault()
-        inputDot()
+        append('.')
         return
       }
 
@@ -234,13 +395,19 @@ function App() {
 
       if (key === 'Escape') {
         event.preventDefault()
-        resetAll()
+        clearAll()
         return
       }
 
-      if (key === '+' || key === '-' || key === '*' || key === '/') {
+      if (key === '(' || key === ')') {
         event.preventDefault()
-        handleOperator(key as Operator)
+        append(key)
+        return
+      }
+
+      if (key === '+' || key === '-' || key === '*' || key === '/' || key === '^') {
+        event.preventDefault()
+        appendOperator(key)
         return
       }
 
@@ -257,7 +424,7 @@ function App() {
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [display, previousValue, operator, overwrite, angleMode])
+  }, [expression, angleMode])
 
   return (
     <div className="app">
@@ -268,7 +435,7 @@ function App() {
             <h1>Orbit Pro</h1>
           </div>
           <div className="status">
-            <span>{operator ? operatorLabels[operator] : 'Ready'}</span>
+            <span>{readyLabel}</span>
             <button
               className="mode-toggle"
               onClick={() =>
@@ -281,167 +448,180 @@ function App() {
         </header>
 
         <section className="display">
-          <p className="history">{history || '\u00A0'}</p>
+          <p className="history-line">{expression || '\u00A0'}</p>
           <div className="value" aria-live="polite">
-            {formatDisplayValue(display)}
+            {result}
           </div>
         </section>
 
-        <div className="pad">
-          <section className="keypad keypad--scientific" aria-label="Scientific keypad">
-            <button className="key key--utility" onClick={resetAll}>
-              AC
-            </button>
-            <button className="key key--utility" onClick={toggleSign}>
-              +/-
-            </button>
-            <button className="key key--utility" onClick={applyPercent}>
-              %
-            </button>
-            <button
-              className="key key--operator"
-              onClick={() => handleOperator('^')}
-            >
-              x^y
-            </button>
+        <div className="calc-body">
+          <div className="pad">
+            <section className="keypad keypad--scientific" aria-label="Scientific keypad">
+              <button className="key key--utility" onClick={clearAll}>
+                AC
+              </button>
+              <button className="key key--utility" onClick={toggleSign}>
+                +/-
+              </button>
+              <button className="key key--utility" onClick={applyPercent}>
+                %
+              </button>
+              <button className="key key--operator" onClick={() => appendOperator('^')}>
+                x^y
+              </button>
 
-            <button
-              className="key key--science"
-              onClick={() =>
-                applyUnary((value) => Math.sin(toRadians(value, angleMode)))
-              }
-            >
-              sin
-            </button>
-            <button
-              className="key key--science"
-              onClick={() =>
-                applyUnary((value) => Math.cos(toRadians(value, angleMode)))
-              }
-            >
-              cos
-            </button>
-            <button
-              className="key key--science"
-              onClick={() =>
-                applyUnary((value) => Math.tan(toRadians(value, angleMode)))
-              }
-            >
-              tan
-            </button>
-            <button
-              className="key key--science"
-              onClick={() => applyUnary((value) => Math.sqrt(value))}
-            >
-              sqrt
-            </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('sin')}>
+                sin
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('cos')}>
+                cos
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('tan')}>
+                tan
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('sqrt')}>
+                sqrt
+              </button>
 
-            <button
-              className="key key--science"
-              onClick={() => applyUnary((value) => value * value)}
-            >
-              x^2
-            </button>
-            <button
-              className="key key--science"
-              onClick={() => applyUnary((value) => 1 / value)}
-            >
-              1/x
-            </button>
-            <button
-              className="key key--science"
-              onClick={() => applyUnary((value) => Math.log10(value))}
-            >
-              log
-            </button>
-            <button
-              className="key key--science"
-              onClick={() => applyUnary((value) => Math.log(value))}
-            >
-              ln
-            </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('asin')}>
+                asin
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('acos')}>
+                acos
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('atan')}>
+                atan
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('x^2')}>
+                x^2
+              </button>
 
-            <button className="key key--science" onClick={() => applyConstant(Math.PI)}>
-              pi
-            </button>
-            <button className="key key--science" onClick={() => applyConstant(Math.E)}>
-              e
-            </button>
-            <button className="key key--utility" onClick={backspace}>
-              CE
-            </button>
-            <button
-              className="key key--operator"
-              onClick={() => handleOperator('/')}
-            >
-              /
-            </button>
-          </section>
+              <button className="key key--science" onClick={() => applyUnaryInline('1/x')}>
+                1/x
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('log')}>
+                log
+              </button>
+              <button className="key key--science" onClick={() => applyUnaryInline('ln')}>
+                ln
+              </button>
+              <button className="key key--utility" onClick={backspace}>
+                CE
+              </button>
 
-          <section className="keypad keypad--main" aria-label="Calculator keypad">
-            <button className="key" onClick={() => inputDigit('7')}>
-              7
-            </button>
-            <button className="key" onClick={() => inputDigit('8')}>
-              8
-            </button>
-            <button className="key" onClick={() => inputDigit('9')}>
-              9
-            </button>
-            <button
-              className="key key--operator"
-              onClick={() => handleOperator('*')}
-            >
-              *
-            </button>
+              <button className="key key--science" onClick={() => appendConstant('pi')}>
+                pi
+              </button>
+              <button className="key key--science" onClick={() => appendConstant('e')}>
+                e
+              </button>
+              <button className="key key--utility" onClick={() => append('(')}>
+                (
+              </button>
+              <button className="key key--utility" onClick={() => append(')')}>
+                )
+              </button>
 
-            <button className="key" onClick={() => inputDigit('4')}>
-              4
-            </button>
-            <button className="key" onClick={() => inputDigit('5')}>
-              5
-            </button>
-            <button className="key" onClick={() => inputDigit('6')}>
-              6
-            </button>
-            <button
-              className="key key--operator"
-              onClick={() => handleOperator('-')}
-            >
-              -
-            </button>
+              <button className="key key--memory" onClick={memoryClear}>
+                MC
+              </button>
+              <button className="key key--memory" onClick={memoryRecall}>
+                MR
+              </button>
+              <button className="key key--memory" onClick={memoryAdd}>
+                M+
+              </button>
+              <button className="key key--memory" onClick={memorySubtract}>
+                M-
+              </button>
+            </section>
 
-            <button className="key" onClick={() => inputDigit('1')}>
-              1
-            </button>
-            <button className="key" onClick={() => inputDigit('2')}>
-              2
-            </button>
-            <button className="key" onClick={() => inputDigit('3')}>
-              3
-            </button>
-            <button
-              className="key key--operator"
-              onClick={() => handleOperator('+')}
-            >
-              +
-            </button>
+            <section className="keypad keypad--main" aria-label="Calculator keypad">
+              <button className="key" onClick={() => append('7')}>
+                7
+              </button>
+              <button className="key" onClick={() => append('8')}>
+                8
+              </button>
+              <button className="key" onClick={() => append('9')}>
+                9
+              </button>
+              <button className="key key--operator" onClick={() => appendOperator('/')}>
+                /
+              </button>
 
-            <button className="key key--wide" onClick={() => inputDigit('0')}>
-              0
-            </button>
-            <button className="key" onClick={inputDot}>
-              .
-            </button>
-            <button className="key key--equals" onClick={evaluate}>
-              =
-            </button>
-          </section>
+              <button className="key" onClick={() => append('4')}>
+                4
+              </button>
+              <button className="key" onClick={() => append('5')}>
+                5
+              </button>
+              <button className="key" onClick={() => append('6')}>
+                6
+              </button>
+              <button className="key key--operator" onClick={() => appendOperator('*')}>
+                *
+              </button>
+
+              <button className="key" onClick={() => append('1')}>
+                1
+              </button>
+              <button className="key" onClick={() => append('2')}>
+                2
+              </button>
+              <button className="key" onClick={() => append('3')}>
+                3
+              </button>
+              <button className="key key--operator" onClick={() => appendOperator('-')}>
+                -
+              </button>
+
+              <button className="key key--wide" onClick={() => append('0')}>
+                0
+              </button>
+              <button className="key" onClick={() => append('.')}>
+                .
+              </button>
+              <button className="key key--operator" onClick={() => appendOperator('+')}>
+                +
+              </button>
+              <button className="key key--equals" onClick={evaluate}>
+                =
+              </button>
+            </section>
+          </div>
+
+          <aside className="history-panel" aria-label="History tape">
+            <div className="history-header">
+              <span>History</span>
+              <button className="history-clear" onClick={() => setHistory([])}>
+                Clear
+              </button>
+            </div>
+            <div className="history-list">
+              {history.length === 0 && (
+                <p className="history-empty">No calculations yet.</p>
+              )}
+              {history.map((entry, index) => (
+                <button
+                  className="history-item"
+                  key={`${entry.expression}-${index}`}
+                  onClick={() => {
+                    setExpression(entry.result)
+                    setResult(entry.result)
+                  }}
+                >
+                  <span className="history-expression">{entry.expression}</span>
+                  <span className="history-result">{entry.result}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
         </div>
 
         <div className="footer">
           <span>Mode: {angleMode}</span>
-          <span>Keys: 0-9, +, -, *, /, Enter, Esc, Backspace</span>
+          <span>Memory: {memory === null ? 'Empty' : formatNumber(memory)}</span>
         </div>
       </div>
     </div>
