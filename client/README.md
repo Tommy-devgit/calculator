@@ -1,11 +1,14 @@
-# Orbit Calculator
+# Orbit Pro Calculator
 
-Desktop-style calculator built with React + Vite, packaged with Electron.
+Professional desktop calculator built with React + Vite, packaged with Electron.
 
 ## Features
 - Basic ops: `+ - * /`
 - `AC` clear, `Backspace` delete
 - Percent and sign toggle
+- Scientific functions: `sin`, `cos`, `tan`, `sqrt`, `x^2`, `x^y`, `1/x`, `log`, `ln`
+- Constants: `pi`, `e`
+- Degree and radian modes
 - Keyboard support
 - Desktop packaging via Electron
 

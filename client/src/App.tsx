@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
-type Operator = '+' | '-' | '*' | '/'
+type Operator = '+' | '-' | '*' | '/' | '^'
+type AngleMode = 'DEG' | 'RAD'
 
 const operatorLabels: Record<Operator, string> = {
   '+': '+',
   '-': '-',
   '*': '*',
   '/': '/',
+  '^': 'x^y',
 }
 
 const formatDisplayValue = (raw: string) => {
@@ -27,11 +29,15 @@ const formatDisplayValue = (raw: string) => {
   return signed
 }
 
+const toRadians = (value: number, mode: AngleMode) =>
+  mode === 'DEG' ? (value * Math.PI) / 180 : value
+
 function App() {
   const [display, setDisplay] = useState('0')
   const [previousValue, setPreviousValue] = useState<number | null>(null)
   const [operator, setOperator] = useState<Operator | null>(null)
   const [overwrite, setOverwrite] = useState(false)
+  const [angleMode, setAngleMode] = useState<AngleMode>('DEG')
 
   const history = useMemo(() => {
     if (previousValue === null || operator === null) return ''
@@ -122,11 +128,35 @@ function App() {
     setOverwrite(true)
   }
 
+  const applyConstant = (value: number) => {
+    setDisplay(String(value))
+    setOverwrite(true)
+  }
+
+  const applyUnary = (fn: (value: number) => number) => {
+    if (display === 'Error') {
+      setDisplay('0')
+      setOverwrite(false)
+      return
+    }
+    const currentValue = Number(display)
+    if (Number.isNaN(currentValue)) return
+    const result = fn(currentValue)
+    if (!Number.isFinite(result)) {
+      setDisplay('Error')
+      setOverwrite(true)
+      return
+    }
+    setDisplay(String(result))
+    setOverwrite(true)
+  }
+
   const compute = (left: number, right: number, op: Operator) => {
     if (op === '+') return left + right
     if (op === '-') return left - right
     if (op === '*') return left * right
     if (op === '/') return right === 0 ? null : left / right
+    if (op === '^') return Math.pow(left, right)
     return null
   }
 
@@ -227,19 +257,26 @@ function App() {
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [display, previousValue, operator, overwrite])
+  }, [display, previousValue, operator, overwrite, angleMode])
 
   return (
     <div className="app">
-      <div className="calculator">
+      <div className="calculator pro">
         <header className="calc-header">
           <div>
-            <p className="eyebrow">Desktop Calculator</p>
-            <h1>Orbit</h1>
+            <p className="eyebrow">Professional Desktop Calculator</p>
+            <h1>Orbit Pro</h1>
           </div>
           <div className="status">
             <span>{operator ? operatorLabels[operator] : 'Ready'}</span>
-            <span className="dot"></span>
+            <button
+              className="mode-toggle"
+              onClick={() =>
+                setAngleMode((mode) => (mode === 'DEG' ? 'RAD' : 'DEG'))
+              }
+            >
+              {angleMode}
+            </button>
           </div>
         </header>
 
@@ -250,85 +287,161 @@ function App() {
           </div>
         </section>
 
-        <section className="keypad" aria-label="Calculator keypad">
-          <button className="key key--utility" onClick={resetAll}>
-            AC
-          </button>
-          <button className="key key--utility" onClick={toggleSign}>
-            +/-
-          </button>
-          <button className="key key--utility" onClick={applyPercent}>
-            %
-          </button>
-          <button
-            className="key key--operator"
-            onClick={() => handleOperator('/')}
-          >
-            /
-          </button>
+        <div className="pad">
+          <section className="keypad keypad--scientific" aria-label="Scientific keypad">
+            <button className="key key--utility" onClick={resetAll}>
+              AC
+            </button>
+            <button className="key key--utility" onClick={toggleSign}>
+              +/-
+            </button>
+            <button className="key key--utility" onClick={applyPercent}>
+              %
+            </button>
+            <button
+              className="key key--operator"
+              onClick={() => handleOperator('^')}
+            >
+              x^y
+            </button>
 
-          <button className="key" onClick={() => inputDigit('7')}>
-            7
-          </button>
-          <button className="key" onClick={() => inputDigit('8')}>
-            8
-          </button>
-          <button className="key" onClick={() => inputDigit('9')}>
-            9
-          </button>
-          <button
-            className="key key--operator"
-            onClick={() => handleOperator('*')}
-          >
-            *
-          </button>
+            <button
+              className="key key--science"
+              onClick={() =>
+                applyUnary((value) => Math.sin(toRadians(value, angleMode)))
+              }
+            >
+              sin
+            </button>
+            <button
+              className="key key--science"
+              onClick={() =>
+                applyUnary((value) => Math.cos(toRadians(value, angleMode)))
+              }
+            >
+              cos
+            </button>
+            <button
+              className="key key--science"
+              onClick={() =>
+                applyUnary((value) => Math.tan(toRadians(value, angleMode)))
+              }
+            >
+              tan
+            </button>
+            <button
+              className="key key--science"
+              onClick={() => applyUnary((value) => Math.sqrt(value))}
+            >
+              sqrt
+            </button>
 
-          <button className="key" onClick={() => inputDigit('4')}>
-            4
-          </button>
-          <button className="key" onClick={() => inputDigit('5')}>
-            5
-          </button>
-          <button className="key" onClick={() => inputDigit('6')}>
-            6
-          </button>
-          <button
-            className="key key--operator"
-            onClick={() => handleOperator('-')}
-          >
-            -
-          </button>
+            <button
+              className="key key--science"
+              onClick={() => applyUnary((value) => value * value)}
+            >
+              x^2
+            </button>
+            <button
+              className="key key--science"
+              onClick={() => applyUnary((value) => 1 / value)}
+            >
+              1/x
+            </button>
+            <button
+              className="key key--science"
+              onClick={() => applyUnary((value) => Math.log10(value))}
+            >
+              log
+            </button>
+            <button
+              className="key key--science"
+              onClick={() => applyUnary((value) => Math.log(value))}
+            >
+              ln
+            </button>
 
-          <button className="key" onClick={() => inputDigit('1')}>
-            1
-          </button>
-          <button className="key" onClick={() => inputDigit('2')}>
-            2
-          </button>
-          <button className="key" onClick={() => inputDigit('3')}>
-            3
-          </button>
-          <button
-            className="key key--operator"
-            onClick={() => handleOperator('+')}
-          >
-            +
-          </button>
+            <button className="key key--science" onClick={() => applyConstant(Math.PI)}>
+              pi
+            </button>
+            <button className="key key--science" onClick={() => applyConstant(Math.E)}>
+              e
+            </button>
+            <button className="key key--utility" onClick={backspace}>
+              CE
+            </button>
+            <button
+              className="key key--operator"
+              onClick={() => handleOperator('/')}
+            >
+              /
+            </button>
+          </section>
 
-          <button className="key key--wide" onClick={() => inputDigit('0')}>
-            0
-          </button>
-          <button className="key" onClick={inputDot}>
-            .
-          </button>
-          <button className="key key--equals" onClick={evaluate}>
-            =
-          </button>
-        </section>
+          <section className="keypad keypad--main" aria-label="Calculator keypad">
+            <button className="key" onClick={() => inputDigit('7')}>
+              7
+            </button>
+            <button className="key" onClick={() => inputDigit('8')}>
+              8
+            </button>
+            <button className="key" onClick={() => inputDigit('9')}>
+              9
+            </button>
+            <button
+              className="key key--operator"
+              onClick={() => handleOperator('*')}
+            >
+              *
+            </button>
+
+            <button className="key" onClick={() => inputDigit('4')}>
+              4
+            </button>
+            <button className="key" onClick={() => inputDigit('5')}>
+              5
+            </button>
+            <button className="key" onClick={() => inputDigit('6')}>
+              6
+            </button>
+            <button
+              className="key key--operator"
+              onClick={() => handleOperator('-')}
+            >
+              -
+            </button>
+
+            <button className="key" onClick={() => inputDigit('1')}>
+              1
+            </button>
+            <button className="key" onClick={() => inputDigit('2')}>
+              2
+            </button>
+            <button className="key" onClick={() => inputDigit('3')}>
+              3
+            </button>
+            <button
+              className="key key--operator"
+              onClick={() => handleOperator('+')}
+            >
+              +
+            </button>
+
+            <button className="key key--wide" onClick={() => inputDigit('0')}>
+              0
+            </button>
+            <button className="key" onClick={inputDot}>
+              .
+            </button>
+            <button className="key key--equals" onClick={evaluate}>
+              =
+            </button>
+          </section>
+        </div>
 
         <div className="footer">
-          <span>Keys: 0-9, +, -, *, /, Enter, Esc</span>
-          <span>Backspace = delete</span>
+          <span>Mode: {angleMode}</span>
+          <span>Keys: 0-9, +, -, *, /, Enter, Esc, Backspace</span>
         </div>
       </div>
     </div>
