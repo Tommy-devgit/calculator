@@ -1,7 +1,9 @@
 {
   "name": "client",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Orbit Pro is a professional desktop scientific calculator.",
+  "author": "Orbit Calculator",
   "type": "module",
   "main": "electron/main.cjs",
   "build": {
@@ -14,8 +16,10 @@
     "directories": {
       "buildResources": "public"
     },
+    "icon": "public/icon.png",
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/icon.ico"
     },
     "mac": {
       "target": "dmg"

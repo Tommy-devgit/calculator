@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage } = require('electron')
 const path = require('path')
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL
@@ -15,9 +15,12 @@ const createWindow = () => {
     show: false,
     title: 'Orbit Calculator',
     autoHideMenuBar: true,
+    frame: false,
     webPreferences: {
       contextIsolation: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
+    icon: path.join(__dirname, '../public/icon.png'),
   })
 
   mainWindow.once('ready-to-show', () => {
@@ -30,14 +33,63 @@ const createWindow = () => {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  return mainWindow
+}
+
+let tray = null
+let mainWindow = null
+let isQuitting = false
+
+const buildTray = () => {
+  const trayIcon = nativeImage.createFromPath(
+    path.join(__dirname, '../public/tray.png')
+  )
+  tray = new Tray(trayIcon)
+  tray.setToolTip('Orbit Calculator')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'Show',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show()
+            mainWindow.focus()
+          }
+        },
+      },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true
+          app.quit()
+        },
+      },
+    ])
+  )
+
+  tray.on('click', () => {
+    if (!mainWindow) return
+    if (mainWindow.isVisible()) {
+      mainWindow.hide()
+    } else {
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
 }
 
 app.whenReady().then(() => {
-  createWindow()
+  app.setAppUserModelId('com.calculator.orbit')
+  mainWindow = createWindow()
+  buildTray()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+      mainWindow = createWindow()
+    } else if (mainWindow) {
+      mainWindow.show()
+      mainWindow.focus()
     }
   })
 })
@@ -46,4 +98,34 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
+ipcMain.handle('window:minimize', () => {
+  if (mainWindow) mainWindow.minimize()
+})
+
+ipcMain.handle('window:toggle-maximize', () => {
+  if (!mainWindow) return false
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize()
+  } else {
+    mainWindow.maximize()
+  }
+  return mainWindow.isMaximized()
+})
+
+ipcMain.handle('window:close', () => {
+  if (mainWindow) mainWindow.close()
+})
+
+app.on('browser-window-created', (_, window) => {
+  window.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    window.hide()
+  })
 })

@@ -49,6 +49,7 @@
   justify-content: space-between;
   position: relative;
   z-index: 1;
+  -webkit-app-region: drag;
 }
 
 .eyebrow {
@@ -73,6 +74,7 @@
   text-transform: uppercase;
   letter-spacing: 0.2em;
   color: var(--muted);
+  -webkit-app-region: no-drag;
 }
 
 .mode-toggle {
@@ -85,11 +87,42 @@
   border-radius: 999px;
   cursor: pointer;
   transition: border-color 0.2s ease, transform 0.2s ease;
+  -webkit-app-region: no-drag;
 }
 
 .mode-toggle:hover {
   border-color: rgba(244, 149, 58, 0.6);
   transform: translateY(-1px);
+}
+
+.window-controls {
+  display: flex;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.window-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 24, 0.6);
+  color: var(--text-strong);
+  font-size: 10px;
+  width: 26px;
+  height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.window-btn:hover {
+  border-color: rgba(244, 149, 58, 0.6);
+  transform: translateY(-1px);
+}
+
+.window-btn--close {
+  color: #1c1307;
+  background: linear-gradient(140deg, #ffb156, #f28c28);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .display {

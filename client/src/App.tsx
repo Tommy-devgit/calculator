@@ -8,6 +8,16 @@ type HistoryEntry = {
   result: string
 }
 
+declare global {
+  interface Window {
+    orbitControls?: {
+      minimize: () => void
+      toggleMaximize: () => Promise<boolean>
+      close: () => void
+    }
+  }
+}
+
 const operatorPrecedence: Record<string, number> = {
   '+': 2,
   '-': 2,
@@ -426,10 +436,14 @@ function App() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [expression, angleMode])
 
+  const handleMinimize = () => window.orbitControls?.minimize()
+  const handleToggleMaximize = () => window.orbitControls?.toggleMaximize()
+  const handleClose = () => window.orbitControls?.close()
+
   return (
     <div className="app">
       <div className="calculator pro">
-        <header className="calc-header">
+        <header className="calc-header titlebar">
           <div>
             <p className="eyebrow">Professional Desktop Calculator</p>
             <h1>Orbit Pro</h1>
@@ -444,6 +458,17 @@ function App() {
             >
               {angleMode}
             </button>
+            <div className="window-controls">
+              <button className="window-btn" onClick={handleMinimize}>
+                _
+              </button>
+              <button className="window-btn" onClick={handleToggleMaximize}>
+                []
+              </button>
+              <button className="window-btn window-btn--close" onClick={handleClose}>
+                X
+              </button>
+            </div>
           </div>
         </header>
 

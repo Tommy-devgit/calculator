@@ -12,6 +12,8 @@ Professional desktop calculator built with React + Vite, packaged with Electron.
 - Degree and radian modes
 - Memory keys: `MC`, `MR`, `M+`, `M-`
 - History tape
+- Frameless window with custom controls
+- Tray icon with quick actions
 - Keyboard support
 - Desktop packaging via Electron
 
